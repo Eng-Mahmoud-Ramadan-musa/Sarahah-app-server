@@ -1,5 +1,5 @@
 import { Message, User } from "../../db/models/index.js";
-import { messages } from "../../utils/index.js";
+import { emailEmitter, messages } from "../../utils/index.js";
 
 export const getAllMessage = async (req, res, next) => {
     
@@ -54,6 +54,7 @@ export const sendMessage = async (req, res, next) => {
     const receiverExist = await User.findOne({email});
     if (!receiverExist) return next(new Error(messages.USER.notFound,{cause: 404}));
     const createdMessage =  await Message.create({content, receiver: receiverExist._id, sender: req.userExist._id, hidden});
+    emailEmitter.emit('message:sent', receiverExist.email, 'receive message from sarahah by ', req.userExist.userName, createdMessage.content);
     return res
     .status(201).
     json({success: true , message: messages.MESSAGE.createdSuccessfully, data: createdMessage})
