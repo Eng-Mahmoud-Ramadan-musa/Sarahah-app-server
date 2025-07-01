@@ -7,7 +7,7 @@ import fs from "fs";
 import cors from "cors";
 
 const bootstrap = async (app, express) => {
-  const allowedOrigins = [proccess.env.BASE_URL];
+  const allowedOrigins = [process.env.BASE_URL];
   app.use(cors({ origin: allowedOrigins }));
 
   const __filename = fileURLToPath(import.meta.url);
