@@ -8,8 +8,17 @@ import cors from "cors";
 
 const bootstrap = async (app, express) => {
   const allowedOrigins = [process.env.BASE_URL];
-  app.use(cors({ origin: allowedOrigins }));
-
+  app.use(cors({
+    origin: function (origin, callback) {
+      if (allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error('Not allowed by CORS'));
+      }
+    },
+    credentials: true, // لو كنت تستخدم كوكيز
+  }));
+  
   const __filename = fileURLToPath(import.meta.url);
   const __dirname = path.dirname(__filename);
 
