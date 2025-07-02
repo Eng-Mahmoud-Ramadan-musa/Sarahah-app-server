@@ -2,13 +2,13 @@ import {Router} from 'express';
 import * as authService from './auth.service.js'
 import * as authValidation from './auth.validation.js';
 import { isAuthenticate, isValid} from '../../middleware/index.js';
-import { asyncHandler, fileUpload, fileValidation } from '../../utils/index.js';
+import { asyncHandler,cloudUpload, fileValidation } from '../../utils/index.js';
 
 
 const router = Router();
 // register
 router.post('/register',
-    fileUpload(fileValidation.images).single("image"),
+    cloudUpload(fileValidation.images).single("image"),
     isValid(authValidation.register),
     asyncHandler(authService.register));
 

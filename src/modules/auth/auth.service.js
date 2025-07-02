@@ -1,4 +1,3 @@
-import path from "path";
 import { OAuth2Client } from "google-auth-library";
 import { customAlphabet } from "nanoid";
 import {
@@ -10,12 +9,11 @@ import {
   hash,
   messages,
   sendEmail,
-  phoneEmitter,
-  subject,
   verifyToken,
 } from "../../utils/index.js";
 import { OTP, User, providers } from "../../db/models/index.js";
 import { signupTemplate } from "../../utils/email/signupTemplate.js";
+import cloudinary from "../../utils/multer/cloud.config.js";
 
 const generateUserToken = (user) => {
   const accessToken = generateToken({
@@ -49,42 +47,60 @@ const generateUserToken = (user) => {
 
 // register
 export const register = async (req, res, next) => {
-  // get data from req
   const { email, userName, password, phone, dob } = req.body;
 
-  // get image
-  const imagePath = req.file ? path.basename(req.file.path) : null;
-  // hashing phone & password
-  const hashPassword = hash({ plainText: password });
-  const hashPhone = encrypt({ plainText: phone });
+    // Check if file exists
+    if (!req.file) {
+      return res.status(400).json({ success: false, message: "Profile image is required" });
+    }
 
-  // create shared link
-  const query = new URLSearchParams({ userName, email }).toString();
-  const shareLink = `${process.env.BASE_URL}/send-message?${query}`;
+    // Upload image to Cloudinary
+    const generateOtp = customAlphabet("0123456789ABCDEF", 6);
+    const folderName = generateOtp();
+    const folder = `sarahah-app/users/${folderName}/profilePic`;
+    const uploadResult = await cloudinary.uploader.upload(req.file.path, { folder });
+    // لحذف الصورة عند الخطأ
+    req.cloudinaryImageId = uploadResult.public_id;
+    
+    // Hash password & phone
+    const hashPassword = hash({ plainText: password });
+    const hashPhone = encrypt({ plainText: phone });
 
+    // Generate shared link
+    const query = new URLSearchParams({ userName, email }).toString();
+    const shareLink = `${process.env.BASE_URL}/send-message?${query}`;
 
-  // create user
-  const userCreated = await User.create({
-    email,
-    userName,
-    password: hashPassword,
-    phone: hashPhone,
-    dob,
-    isConfirmed: true,
-    image: imagePath,
-    shareLink
-  });
+    // Create user
+    const userCreated = await User.create({
+      email,
+      userName,
+      password: hashPassword,
+      phone: hashPhone,
+      dob,
+      isConfirmed: true,
+      image: {
+        secure_url: uploadResult.secure_url,
+        public_id: uploadResult.public_id,
+        folder,
+      },
+      shareLink,
+    });
 
-      // send email
-     const isSend = await sendEmail({
-          to: email,
-          subject: subject,
-          html: signupTemplate("active account")})
-      if (!isSend) return next(new Error(emailNotSend, {cause: 400}))
+    // Send confirmation email
+    const isSend = await sendEmail({
+      to: email,
+      subject: "Activate your Sarahah account",
+      html: signupTemplate("Activate your account"),
+    });
 
-  return res
-    .status(201)
-    .json({ success: true, message: messages.USER.createdSuccessfully });
+    if (!isSend) {
+      return next(new Error(emailNotSend, { cause: 400 }));
+    }
+
+    return res.status(201).json({
+      success: true,
+      message: messages.USER.createdSuccessfully,
+    });
 };
 
 // googleLogin
@@ -121,7 +137,7 @@ export const googleLogin = async (req, res, next) => {
     userExist = await User.create({
       email,
       userName: name,
-      image: picture,
+      image: {secure_url: picture},
       provider: providers.GOOGLE,
       shareLink
     });

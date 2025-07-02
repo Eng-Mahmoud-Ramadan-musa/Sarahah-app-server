@@ -1,7 +1,7 @@
 import {Router} from 'express';
 import * as userService from './user.service.js'
 import { isAuthenticate, isValid } from '../../middleware/index.js';
-import { asyncHandler, fileUpload, fileValidation} from '../../utils/index.js';
+import { asyncHandler, cloudUpload, fileValidation} from '../../utils/index.js';
 import { updated } from './user.validation.js';
 
 const router = Router();
@@ -10,7 +10,7 @@ router.get('/profile',isAuthenticate, asyncHandler(userService.getProfile));
 router.delete('/freeze',isAuthenticate, asyncHandler(userService.freezeProfile));
 router.put('/',
     isAuthenticate,
-    fileUpload(fileValidation.images).single("image"),
+    cloudUpload(fileValidation.images).single("image"),
     isValid(updated), 
     asyncHandler(userService.updateProfile));
 

@@ -1,7 +1,8 @@
-import path from "path";
 import fs from "fs";
-import { User } from "../../db/models/index.js";
+import { Message, User } from "../../db/models/index.js";
 import { decrypt, encrypt, hash, messages } from "../../utils/index.js";
+import { customAlphabet } from "nanoid";
+import cloudinary from "../../utils/multer/cloud.config.js";
 
 export const getProfile = async (req, res, next) => {
   const userExist = req.userExist;
@@ -16,17 +17,35 @@ export const getProfile = async (req, res, next) => {
 
 export const updateProfile = async (req, res, next) => {
   const userExist = req.userExist;
-  const oldImagePath = userExist.image
-    ? path.resolve("uploads", userExist.image)
-    : null;
 
-  if (req.file.path) {
-    // حذف الصورة القديمة في حال وجودها
-    if (oldImagePath && fs.existsSync(oldImagePath)) {
-      fs.unlinkSync(oldImagePath);
+  let image = userExist.image || {};
+  if (req.file) {
+    let uploadResult;
+    if (!userExist.image || !userExist.image.folder) {
+      const generateOtp = customAlphabet("0123456789ABCDEF", 6);
+      const folderName = generateOtp();
+      const folder = `sarahah-app/users/${folderName}/profilePic`;
+
+      uploadResult = await cloudinary.uploader.upload(req.file.path, { folder });
+      image = {
+        secure_url: uploadResult.secure_url,
+        public_id: uploadResult.public_id,
+        folder,
+      };
+    } else {
+      const folder = userExist.image.folder;
+      uploadResult = await cloudinary.uploader.upload(req.file.path, { folder });
+      image = {
+        secure_url: uploadResult.secure_url,
+        public_id: uploadResult.public_id,
+        folder,
+      };
     }
 
-    userExist.image = req.file.filename;
+    // لحذف الصورة عند الخطأ
+    req.cloudinaryImageId = image.public_id;
+
+    userExist.image = image;
   }
 
   if (req.body.password) {
@@ -48,7 +67,9 @@ export const updateProfile = async (req, res, next) => {
   await userExist.save();
 
   userExist.password = "";
-  userExist.phone && (userExist.phone = decrypt({ cipherText: userExist.phone }));
+  if (userExist.phone) {
+    userExist.phone = decrypt({ cipherText: userExist.phone });
+  }
 
   return res.status(200).json({
     success: true,
@@ -56,17 +77,31 @@ export const updateProfile = async (req, res, next) => {
     data: userExist,
   });
 };
+
 export const deleteProfile = async (req, res, next) => {
-  const oldImagePath = req.userExist.image
-    ? path.resolve("uploads", req.userExist.image)
-    : null;
-  if (oldImagePath && fs.existsSync(oldImagePath)) {
-    fs.unlinkSync(oldImagePath);
+  const user = req.userExist;
+
+  // 🧹 حذف صورة المستخدم من Cloudinary
+  if (user.image?.public_id) {
+        // حذف كل الصور داخل المجلد
+        await cloudinary.api.delete_resources_by_prefix(folderPath);
+
+        // حذف المجلد نفسه (إن لم يعد يحتوي على ملفات)
+        await cloudinary.api.delete_folder(folderPath);
   }
-  await User.findByIdAndDelete(req.userExist._id);
-  return res
-    .status(200)
-    .json({ success: true, message: messages.USER.deletedSuccessfully });
+
+  // 🧹 حذف الرسائل التي أرسلها أو استقبلها
+  await Message.deleteMany({
+    $or: [{ sender: user._id }, { receiver: user._id }],
+  });
+
+  // 🧹 حذف الحساب
+  await User.findByIdAndDelete(user._id);
+
+  return res.status(200).json({
+    success: true,
+    message: messages.USER.deletedSuccessfully,
+  });
 };
 
 export const freezeProfile = async (req, res, next) => {

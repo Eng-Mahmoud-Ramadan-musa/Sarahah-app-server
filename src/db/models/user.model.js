@@ -54,7 +54,11 @@ const userSchema = new Schema ({
         default: genders.MALE,
       },
       image: {
-        type: String,
+        type: {
+          secure_url: String,
+          public_id: String,
+          folder: String
+        },
         default: null,
       },
       isDeleted: {
