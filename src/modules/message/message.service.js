@@ -1,6 +1,16 @@
 import { Message, User } from "../../db/models/index.js";
 import { emailEmitter, messages } from "../../utils/index.js";
 
+const handleResponse = (data) => {
+        data.map(msg => {
+            msg.hidden ? {
+                ...msg, 
+                sender: {userName: unknwonUser, profilePic: {}, email: ''}
+            }: msg
+        })
+        return data;
+    }
+
 export const getAllMessage = async (req, res, next) => {
     
     const getAllMessages = await Message.find({
@@ -10,10 +20,11 @@ export const getAllMessage = async (req, res, next) => {
         ],
         deletedAt: null
     }).populate("sender", "userName email gender");
-
+    
+    const data = handleResponse(getAllMessages)
     return res.status(200).json({
         success: true,
-        data: getAllMessages
+        data
     });
 };
 
@@ -29,10 +40,10 @@ export const getAllMessageSender = async (req, res, next) => {
 export const getAllMessageReceiver = async (req, res, next) => {
     
     const getAllMessages = await Message.find({ receiver: req.userExist._id , deletedAt: null}).populate("sender", "userName email gender");
-
+    const data = handleResponse(getAllMessages)
     return res.status(200).json({
         success: true,
-        data: getAllMessages
+        data
     });
 };
 
@@ -42,10 +53,10 @@ export const getAllMessageFavorite = async (req, res, next) => {
         { sender: req.userExist._id },
         { receiver: req.userExist._id }
     ],favorite: true}).populate("sender", "userName email gender");
-
+    const data = handleResponse(getAllMessages)
     return res.status(200).json({
         success: true,
-        data: getAllMessages
+        data
     });
 };
 
