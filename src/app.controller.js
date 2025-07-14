@@ -18,6 +18,9 @@ const bootstrap = async (app, express) => {
   app.use(express.json());
 
   // Routes
+  app.use("/", (req, res) => {
+    res.send("Welcome to the API");
+  });
   app.use("/auth", routers.authRouter);
   app.use("/user", routers.userRouter);
   app.use("/message", routers.messageRouter);
