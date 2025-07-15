@@ -4,30 +4,33 @@ import { globalErrorHandler, notFoundHandler } from "./utils/index.js";
 import cors from "cors";
 
 const bootstrap = async (app, express) => {
-  app.use(
-    cors({
-      origin: [process.env.BASE_URL],
-      credentials: true,
-    })
-  );
+// Connect to DB
+await connectDB();
 
-  // Connect to database
-  await connectDB();
+// Middleware
+app.use(
+  cors({
+    origin: "http://localhost:5173",
+    credentials: true,
+  })
+);
 
-  // Middleware
-  app.use(express.json());
+app.use(express.json());
 
-  // Routes
-  app.use("/", (req, res) => {
-    res.send("Welcome to the API");
-  });
-  app.use("/auth", routers.authRouter);
-  app.use("/user", routers.userRouter);
-  app.use("/message", routers.messageRouter);
+// API Routes
+app.use("/auth", routers.authRouter);
+app.use("/user", routers.userRouter);
+app.use("/message", routers.messageRouter);
 
-  // Error handler
-  app.all("*", notFoundHandler);
-  app.use(globalErrorHandler);
+// Optional home route (keep it last if needed)
+app.get("/", (req, res) => {
+  res.send("Welcome to the API");
+});
+
+// Error handlers
+app.all("*", notFoundHandler);
+app.use(globalErrorHandler);
+
 };
 
 export default bootstrap;

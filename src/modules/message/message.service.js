@@ -1,15 +1,22 @@
 import { Message, User } from "../../db/models/index.js";
 import { emailEmitter, messages } from "../../utils/index.js";
 
-const handleResponse = (data) => {
-        data.map(msg => {
-            msg.hidden ? {
-                ...msg, 
-                sender: {userName: unknwonUser, profilePic: {}, email: ''}
-            }: msg
-        })
-        return data;
-    }
+// const handleResponse = (data) => {
+//   return data.map(msg => {
+//     if (msg.hidden) {
+//       return {
+//         ...msg,
+//         sender: {
+//           userName: unknownUser,
+//           profilePic: {},
+//           email: ''
+//         }
+//       };
+//     }
+//     return msg;
+//   });
+// };
+
 
 export const getAllMessage = async (req, res, next) => {
     
@@ -21,10 +28,10 @@ export const getAllMessage = async (req, res, next) => {
         deletedAt: null
     }).populate("sender", "userName email gender");
     
-    const data = handleResponse(getAllMessages)
+    // const data = handleResponse(getAllMessages)
     return res.status(200).json({
         success: true,
-        data
+        data: getAllMessages
     });
 };
 

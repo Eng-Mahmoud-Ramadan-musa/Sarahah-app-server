@@ -11,7 +11,7 @@ import {
   sendEmail,
   verifyToken,
 } from "../../utils/index.js";
-import { OTP, User, providers } from "../../db/models/index.js";
+import { OTP, providers, User } from "../../db/models/index.js";
 import { signupTemplate } from "../../utils/email/signupTemplate.js";
 import cloudinary from "../../utils/multer/cloud.config.js";
 
@@ -44,7 +44,6 @@ const generateUserToken = (user) => {
   };
 };
 
-
 // register
 export const register = async (req, res, next) => {
   const { email, userName, password, phone, dob } = req.body;
@@ -70,6 +69,9 @@ export const register = async (req, res, next) => {
     const query = new URLSearchParams({ userName, email }).toString();
     const shareLink = `${process.env.BASE_URL}/send-message?${query}`;
 
+    // Check if user already exists
+    const userExist = await User.findOne({ email: email.toLowerCase(), userName });
+    if (userExist) throw new Error(messages.USER.emailOrUsernameAlreadyExists, { cause: 400 });
     // Create user
     const userCreated = await User.create({
       email,
@@ -126,25 +128,33 @@ export const googleLogin = async (req, res, next) => {
       .status(400)
       .json({ success: false, message: "idToken is required" });
   }
-  const { name, email, picture } = await verifyGoogleToken(idToken);
-  // create shared link
-  const query = new URLSearchParams({ userName: name, email }).toString();
-  const shareLink = `${process.env.BASE_URL}/send-message?${query}`;
-  
 
-  let userExist = await User.findOne({ email });
+  const { name, email, picture } = await verifyGoogleToken(idToken);
+
+  const query = new URLSearchParams({ userName: name, email }).toString();
+  const shareLink = `${process.env.FORNTEND_URL}/send-message?${query}`;
+
+  let userExist = await User.findOne({ email: email.toLowerCase() });
+  console.log({ userExist, name, email, picture, shareLink });
+
   if (!userExist) {
     userExist = await User.create({
       email,
       userName: name,
-      image: {secure_url: picture},
+      image: {
+        secure_url: picture,
+        public_id: '',
+        folder: ''
+      },
       provider: providers.GOOGLE,
       shareLink
     });
   }
+
   const { accessToken, refreshToken, safeUser } = generateUserToken(userExist);
   userExist.isDeleted = false;
   await userExist.save();
+
   return res.status(200).json({
     success: true,
     message: "User logged in successfully",
