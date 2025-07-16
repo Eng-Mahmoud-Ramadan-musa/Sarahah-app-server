@@ -12,7 +12,7 @@ export const isAuthenticate = async (req , res, next) => {
     
     const {id, iat} = verifyToken({payload: token});
     
-    if(!id) return next(new Error("Token verification failed", {cause: 400}))
+    if(!id) return next(new Error("invalid token", {cause: 401}))
     const userExist = await User.findById(id);
     
     if (!userExist) return next(new Error(messages.USER.notFound ,{cause: 404}))

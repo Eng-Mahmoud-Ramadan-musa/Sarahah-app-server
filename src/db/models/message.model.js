@@ -19,14 +19,6 @@ const messageSchema = new Schema ({
         type: Boolean,
         default: false,
     },    
-    favorite: {
-        type: Boolean,
-        default: false,
-    },
-    deletedAt: {
-        type: Date,
-        default: '',
-      }
 },
 {
     timestamps: true

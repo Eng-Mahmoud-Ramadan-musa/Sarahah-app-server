@@ -8,39 +8,50 @@ export const getAllMessage = async (req, res, next) => {
       { sender: req.userExist._id },
       { receiver: req.userExist._id }
     ],
-    deletedAt: null
+    _id: { $nin: req.userExist.archive },
   }).populate("sender", "userName email image gender");
 
   const formattedMessages = handleResponse(getAllMessages);
-  return res.status(200).json({ success: true, data: formattedMessages });
+  const favorite = req.userExist.favorite;
+  return res.status(200).json({ success: true, data: formattedMessages, favorite });
 };
 
 export const getAllMessageSender = async (req, res, next) => {
-  const getAllMessages = await Message.find({ sender: req.userExist._id, deletedAt: null })
+  const getAllMessages = await Message.find(
+    { 
+      sender: req.userExist._id,
+      _id: { $nin: req.userExist.archive } 
+    })
     .populate("sender", "userName email gender");
-
-  return res.status(200).json({ success: true, data: getAllMessages });
+    const favorite = req.userExist.favorite;
+  return res.status(200).json({ success: true, data: getAllMessages, favorite });
 };
 
 export const getAllMessageReceiver = async (req, res, next) => {
-  const getAllMessages = await Message.find({ receiver: req.userExist._id, deletedAt: null })
+  const getAllMessages = await Message.find({ 
+    receiver: req.userExist._id, 
+    _id: { $nin: req.userExist.archive }, 
+    })
     .populate("sender", "userName email gender image");
 
+    const favorite = req.userExist.favorite;
+
   const formattedMessages = handleResponse(getAllMessages);
-  return res.status(200).json({ success: true, data: formattedMessages });
+  return res.status(200).json({ success: true, data: formattedMessages, favorite });
 };
 
 export const getAllMessageFavorite = async (req, res, next) => {
-  const getAllMessages = await Message.find({
-    $or: [
-      { sender: req.userExist._id },
-      { receiver: req.userExist._id }
-    ],
-    favorite: true
-  }).populate("sender", "userName email image gender");
+    const getAllMessages = await Message.find({
+      _id: { $in: req.userExist.favorite }
+    }).populate("sender", "userName email image gender");
 
-  const formattedMessages = handleResponse(getAllMessages);
-  return res.status(200).json({ success: true, data: formattedMessages });
+    const formattedMessages = handleResponse(getAllMessages);
+    const favorite = req.userExist.favorite;
+    return res.status(200).json({
+      success: true,
+      data: formattedMessages,
+      favorite
+    });
 };
 
 export const sendMessage = async (req, res, next) => {
@@ -73,22 +84,42 @@ export const sendMessage = async (req, res, next) => {
 };
 
 export const addOrRemoveToFavorite = async (req, res, next) => {
-  const id = req.params.id;
+       const id = req.params.id;
 
-  const message = await Message.findById(id);
-  if (!message)
-    return res.status(404).json({
-      success: false,
-      message: messages.MESSAGE.notFound
+    const message = await Message.findById(id);
+    if (!message) {
+      return res.status(404).json({
+        success: false,
+        message: messages.MESSAGE.notFound,
+      });
+    }
+
+    const favorites = req.userExist.favorite;
+    const archive = req.userExist.archive;
+
+    const favIndex = favorites.indexOf(id);
+
+    if (favIndex !== -1) {
+      // إذا كانت الرسالة في المفضلة → نحذفها
+      favorites.splice(favIndex, 1);
+    } else {
+      // إذا لم تكن في المفضلة → نضيفها
+      favorites.push(id);
+
+      // نحذفها من الأرشيف إن كانت موجودة
+      const archiveIndex = archive.indexOf(id);
+      if (archiveIndex !== -1) {
+        archive.splice(archiveIndex, 1);
+      }
+    }
+
+    await req.userExist.save();
+
+    return res.status(200).json({
+      success: true,
+      message: messages.MESSAGE.updatedSuccessfully,
+      isFavorite: favIndex === -1, // إذا أضيفت الآن
     });
-
-  message.favorite = !message.favorite;
-  await message.save();
-
-  return res.status(200).json({
-    success: true,
-    message: messages.MESSAGE.updatedSuccessfully
-  });
 };
 
 export const deleteMessage = async (req, res, next) => {
@@ -125,79 +156,94 @@ export const deleteAllMessage = async (req, res, next) => {
 };
 
 export const getArchiveAllMessage = async (req, res, next) => {
-  const result = await Message.find({
-    $or: [
-      { sender: req.userExist._id },
-      { receiver: req.userExist._id }
-    ],
-    deletedAt: { $ne: null }
-  }).populate("sender", "userName email gender image");
+    const messages = await Message.find({
+      _id: { $in: req.userExist.archive },
+    }).populate("sender receiver", "userName email image gender");
 
-  const formattedMessages = handleResponse(result);
+    const formattedMessages = handleResponse(messages);
 
-  return res.status(200).json({
-    success: true,
-    message: 'This messages all from archive',
-    data: formattedMessages
-  });
+    return res.status(200).json({
+      success: true,
+      message: 'All archived messages retrieved successfully.',
+      data: formattedMessages,
+    });
 };
 
 export const archiveOrRestoreMessage = async (req, res, next) => {
-  const id = req.params.id;
-  const message = await Message.findById(id);
+    const id = req.params.id;
 
-  if (!message)
-    return res.status(404).json({
-      success: false,
-      message: messages.MESSAGE.notFound
+    const message = await Message.findById(id);
+    if (!message) {
+      return res.status(404).json({
+        success: false,
+        message: messages.MESSAGE.notFound,
+      });
+    }
+
+    const favorites = req.userExist.favorite;
+    const archive = req.userExist.archive;
+    const index = archive.indexOf(id);
+
+    if (index !== -1) {
+      // إذا كانت موجودة → نحذفها
+      archive.splice(index, 1);
+    } else {
+      // إذا لم تكن موجودة → نضيفها
+      archive.push(id);
+      const favoriteIndex = favorites.indexOf(id);
+      if (favoriteIndex !== -1) {
+        favorites.splice(favoriteIndex, 1);
+      }
+    }
+
+    await req.userExist.save();
+
+    return res.status(200).json({
+      success: true,
+      message: messages.MESSAGE.updatedSuccessfully,
+      isFavorite: index === -1, // إذا تمت إضافتها الآن = true
     });
-
-  message.deletedAt = message.deletedAt ? null : new Date();
-  message.favorite = false;
-  await message.save();
-
-  return res.status(200).json({
-    success: true,
-    message: messages.MESSAGE.updatedSuccessfully
-  });
 };
 
 export const archiveAllMessage = async (req, res, next) => {
-  const result = await Message.updateMany({
-    $or: [
-      { sender: req.userExist._id },
-      { receiver: req.userExist._id }
-    ],
-    deletedAt: null
-  }, {
-    $set: { deletedAt: new Date() }
-  });
+    // 1. جلب كل الرسائل التي المستخدم طرف فيها
+    const allUserMessages = await Message.find({
+      $or: [
+        { sender: req.userExist._id },
+        { receiver: req.userExist._id }
+      ]
+    });
 
-  if (result.matchedCount < 1)
-    return next(new Error('No messages available for archiving.'));
+    // 2. استخراج معرفات الرسائل
+    const messageIds = allUserMessages.map(msg => msg._id.toString());
 
-  return res.status(200).json({
-    success: true,
-    message: messages.MESSAGE.updatedSuccessfully
-  });
+    // 3. حذف المكرر (لو كانت الرسالة مؤرشفة مسبقًا)
+    const uniqueArchived = [...new Set([...req.userExist.archive.map(id => id.toString()), ...messageIds])];
+
+    // 4. تحديث المستخدم بحقل archive
+    req.userExist.archive = uniqueArchived;
+    await req.userExist.save();
+    const archivedMessages = await Message.find({
+      _id: { $in: uniqueArchived }
+    }).populate("sender", "userName email image gender");
+
+    const formattedMessages = handleResponse(archivedMessages);
+    return res.status(200).json({
+      success: true,
+      message: "All messages archived successfully.",
+      data: formattedMessages
+    });
 };
 
 export const restoreAllMessage = async (req, res, next) => {
-  const result = await Message.updateMany({
-    $or: [
-      { sender: req.userExist._id },
-      { receiver: req.userExist._id }
-    ],
-    deletedAt: { $ne: null }
-  }, {
-    $set: { deletedAt: null }
-  });
+    // تفريغ المصفوفة
+    req.userExist.archive = [];
 
-  if (result.matchedCount < 1)
-    return next(new Error('No messages available for restoration.'));
+    // حفظ التعديلات
+    await req.userExist.save();
 
-  return res.status(200).json({
-    success: true,
-    message: messages.MESSAGE.updatedSuccessfully
-  });
+    return res.status(200).json({
+      success: true,
+      message: "Archived messages cleared successfully.",
+    });
 };

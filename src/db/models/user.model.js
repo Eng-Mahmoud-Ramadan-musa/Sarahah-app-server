@@ -92,6 +92,14 @@ const userSchema = new Schema({
     type: [String],
     default: [],
   },
+  favorite: {
+    type: [String],
+    default: [],
+  },
+  archive: {
+    type: [String],
+    default: [],
+  },
   provider: {
     type: String,
     enum: Object.values(providers),

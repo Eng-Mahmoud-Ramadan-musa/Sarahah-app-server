@@ -135,7 +135,6 @@ export const googleLogin = async (req, res, next) => {
   const shareLink = `${process.env.FORNTEND_URL}/send-message?${query}`;
 
   let userExist = await User.findOne({ email: email.toLowerCase() });
-  console.log({ userExist, name, email, picture, shareLink });
 
   if (!userExist) {
     userExist = await User.create({
